@@ -83,4 +83,16 @@ public class Utils {
         Random random=new Random();
         return String.valueOf(random.nextInt(maxPort-minPort+1)+minPort);
     }
+
+    public static boolean isInRange(int num, int start, int end, boolean rightIncluded){
+        if(rightIncluded==false){
+            if(start<end) return num>=start && num<=end;
+            else return num>=start || num<end;
+        }
+        else{
+            if(start<end) return num>=start && num<end;
+            else return num>=start || num<end;
+        }
+
+    }
 }

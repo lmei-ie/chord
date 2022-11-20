@@ -7,6 +7,7 @@ import java.net.Socket;
 
 import project.cs249.src.node.Node;
 import project.cs249.src.node.PeerNode;
+import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
 
 
@@ -24,8 +25,20 @@ class ServerThread implements Runnable{
         try{
             ois=new ObjectInputStream(this.socket.getInputStream());
             int code = ois.readInt();
-			PeerNode peerNode = (PeerNode) ois.readObject();
-            Logger.info(ServerThread.class, "Received " + peerNode.toString());
+            switch (code){
+                case Constants.P2P_CMD_FINDSUCCESSOR:
+                    PeerNode queryNode = (PeerNode) ois.readObject();
+                    Logger.info(ServerThread.class, "find successor for " + queryNode.toString());
+                    curNode.find_successor(queryNode);
+                break;
+                case Constants.P2P_CMD_RECEIVESUCCESSOR:
+                    PeerNode targetNode = (PeerNode) ois.readObject();
+                    Logger.info(ServerThread.class, curNode.toString()+" 's successor is "+targetNode.toString());
+                    curNode.setSuccessor(targetNode);
+                    curNode.printFT();
+                break;
+            }
+
         }catch(Exception e){
             e.printStackTrace();
         }finally{

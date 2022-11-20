@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import project.cs249.src.util.ConstNames;
+import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
 import project.cs249.src.util.Utils;
 
@@ -26,7 +26,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
      private static int _maxNumNodes;
 
      private int _numNodes;
-     private Node[] _nodeRing;
+     private PeerNode[] _nodeRing;
      private boolean _busy;
      private List<Integer> _idList;
 
@@ -35,7 +35,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
         _m = m;
         _maxNumNodes = (int) Math.pow(2,m);
         _numNodes = 0;
-        _nodeRing = new Node[_maxNumNodes];
+        _nodeRing = new PeerNode[_maxNumNodes];
         _busy=false;
         _idList=new ArrayList<>();
     }
@@ -61,7 +61,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
      * @throws RemoteException
      */
     @Override
-    public String getNodeInfo(Node node) throws RemoteException{
+    public String getNodeInfo(PeerNode node) throws RemoteException{
         Map<String,Object> map_res=new HashMap<>();
         Logger.info(SuperNode.class,node.toString()+" invoked getLiveInfo");
         if(!_busy){
@@ -70,7 +70,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
                 //_busy should set to false after the node has ack joining.
                 _busy=true;
                 int hashIdx=-1;
-                map_res.put("status",ConstNames.RMI_CODE_HASH_ERROR);
+                map_res.put("status",Constants.RMI_CODE_HASH_ERROR);
                 if(_numNodes+1>_maxNumNodes){
                     map_res.put("message","Number of nodes exceed maximum allowance.");
                     return Utils.mapToString(map_res);
@@ -84,10 +84,10 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
                             newTimeStamp=Utils.dateTimeToHex();
                             hashIdx=hashFunc(newTimeStamp, node.getIp(), node.getPort());
                         }
-                        map_res.put("status",ConstNames.RMI_CODE_REHASH_SUCCESS);
+                        map_res.put("status",Constants.RMI_CODE_REHASH_SUCCESS);
                         map_res.put("timestamp",newTimeStamp);
                     }else{
-                        map_res.put("status",ConstNames.RMI_CODE_HASH_SUCCESS);
+                        map_res.put("status",Constants.RMI_CODE_HASH_SUCCESS);
                     }
                     map_res.put("id",hashIdx);
                     map_res.put("m",_m);
@@ -99,24 +99,24 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             }
         }
         else {
-            map_res.put("status", ConstNames.RMI_CODE_SNODE_BUSY);
+            map_res.put("status", Constants.RMI_CODE_SNODE_BUSY);
             map_res.put("message","SuperNode busy");
         }
         return Utils.mapToString(map_res);
     }
 
-    public void ackRegister(int id, Node node) throws RemoteException{
+    public void ackRegister(PeerNode node) throws RemoteException{
         /*TODO: release _busy after a certain amount of time if no ACK */
         synchronized(this){
             _busy=false;
-            _nodeRing[id]=node;
+            _nodeRing[node.getId()]=node;
             _numNodes++;
-            _idList.add(id);
+            _idList.add(node.getId());
         }
         Logger.info(SuperNode.class,this.toString());
     }
 
-    public Node getRamdonNode(int id) throws RemoteException{
+    public PeerNode getRamdonNode(int id) throws RemoteException{
         //only one node in the ring, the same node means all entries in the ft is itself
         if(_idList.size()==1) return _nodeRing[_idList.get(0)];
 

@@ -17,9 +17,16 @@ public class SocketSender {
     }
 
 
-    public void sendData(int code, PeerNode node) throws IOException {
+    public void sendNode(int code, PeerNode node) throws IOException {
 		oos.writeInt(code);
 		oos.writeObject(node);
+		oos.flush();
+		socket.shutdownOutput();
+	}
+
+    public void sendKey(int code, int key) throws IOException {
+		oos.writeInt(code);
+		oos.writeInt(key);
 		oos.flush();
 		socket.shutdownOutput();
 	}
