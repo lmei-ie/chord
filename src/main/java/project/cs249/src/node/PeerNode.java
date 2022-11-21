@@ -14,7 +14,7 @@ import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
 import project.cs249.src.util.Utils;
 
-public class PeerNode extends Node implements Runnable{
+public class PeerNode extends Node{
     private static final long serialVersionUID = 1190476516911661470L;
     private PeerNode _predecessor; 
     //maximum number fo nodes allowed
@@ -62,6 +62,9 @@ public class PeerNode extends Node implements Runnable{
             //the successor's id must >= (pNode'id + 2^0)%2^m
             int key=(this.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
             socketSender.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
+
+            //socket.readObject -> successor / null;
+            //if null, this node dies? tell the supernode to remove it?
         }
 
 	}
@@ -137,7 +140,8 @@ public class PeerNode extends Node implements Runnable{
             else{
                 SocketSender socketSender=new SocketSender(hiPredecessor.getIp(),hiPredecessor.getPort());
                 //the successor's id must >= (curNode'id + 2^0)%2^m
-                socketSender.sendNode(Constants.P2P_CMD_FINDSUCCESSOR, pNode);
+                socketSender.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, pNode, key);
+                //use this socket to read?
             }
         }
     }
@@ -155,15 +159,6 @@ public class PeerNode extends Node implements Runnable{
         }
         return this;
     }
-	
-
-    @Override
-    public void run() {
-         //set up socket server for communication among peerNodes;
-         SocketServer server=new SocketServer(Integer.parseInt(this.getPort()),this);
-         server.start();
-    }
-
 
     public static void main(String[] args){
         
@@ -185,11 +180,20 @@ public class PeerNode extends Node implements Runnable{
             curNode.ackRegister(superNodeRMI);
             curNode.initializeFT();
             
-            Thread t=new Thread(curNode,"Socket Server");
+            Thread t=new Thread(new Runnable() {
+                public void run(){
+                    SocketServer server=new SocketServer(Integer.parseInt(str_hostPort),curNode);
+                    server.start();
+                }
+            },"Socket Server");
             t.start();
-
-            curNode.join(superNodeRMI);
             
+            //concurrent join will be an issue (no server to connect) b/c join randomly happnes before server starts.
+            //(the first joined node does not connect to a socket server b/c it is the only one. )
+            //a solution for above is to make main sleep and let thead starts first.
+            Thread.sleep(500);
+            curNode.join(superNodeRMI);
+            System.out.println("test");
             
         }
         catch (Exception e) {
