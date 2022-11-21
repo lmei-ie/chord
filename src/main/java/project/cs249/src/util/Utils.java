@@ -84,14 +84,22 @@ public class Utils {
         return String.valueOf(random.nextInt(maxPort-minPort+1)+minPort);
     }
 
-    public static boolean isInRange(int num, int start, int end, boolean rightIncluded){
-        if(rightIncluded==false){
+    public static boolean isInRange(int num, int start, int end, boolean leftIncluded, boolean rightIncluded){
+        if(leftIncluded==true && rightIncluded==true){
             if(start<end) return num>=start && num<=end;
-            else return num>=start || num<end;
+            else return num>=start || num<=end;
         }
-        else{
+        else if(leftIncluded==true && rightIncluded==false){
             if(start<end) return num>=start && num<end;
             else return num>=start || num<end;
+        }
+        else if(leftIncluded==false && rightIncluded==true){
+            if(start<end) return num>start && num<=end;
+            else return num>start || num<=end;
+        }
+        else{
+            if(start<end) return num>start && num<end;
+            else return num>start || num<end;
         }
 
     }

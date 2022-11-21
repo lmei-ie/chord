@@ -32,10 +32,17 @@ class ServerThread implements Runnable{
                     curNode.find_successor(queryNode,key);
                 break;
                 case Constants.P2P_CMD_RECEIVESUCCESSOR:
-                    PeerNode targetNode = (PeerNode) ois.readObject();
-                    Logger.info(ServerThread.class, curNode.toString()+" 's successor is "+targetNode.toString());
-                    curNode.setSuccessor(targetNode);
+                    PeerNode successor = (PeerNode) ois.readObject();
+                    Logger.info(ServerThread.class, curNode.toString()+" 's successor is "+successor.toString());
+                    curNode.setSuccessor(successor);
                     curNode.printFT();
+                    SocketSender sender=new SocketSender(successor.getIp(), successor.getPort());
+                    sender.sendNode(Constants.P2P_CMD_RECEIVEPREDECESSOR, curNode);
+                break;
+                case Constants.P2P_CMD_RECEIVEPREDECESSOR:
+                    PeerNode predecessor = (PeerNode) ois.readObject();
+                    Logger.info(ServerThread.class, curNode.toString()+" 's predecessor is "+predecessor.toString());
+                    curNode.setPredecessor(predecessor);
                 break;
             }
 

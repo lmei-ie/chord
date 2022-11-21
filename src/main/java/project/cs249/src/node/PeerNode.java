@@ -16,7 +16,7 @@ import project.cs249.src.util.Utils;
 
 public class PeerNode extends Node implements Runnable{
     private static final long serialVersionUID = 1190476516911661470L;
-    private PeerNode _predecessor;
+    private PeerNode _predecessor; 
     //maximum number fo nodes allowed
     private int _m;
     //private Finger[] _fingerTable;
@@ -25,7 +25,7 @@ public class PeerNode extends Node implements Runnable{
     public PeerNode(String ip, String port) {
         super(ip, port);
         //if conflict, the id should be rehash using the newest timestamp, need it for size of FT?
-        this._predecessor=null;
+        this._predecessor=null; //synchronized on null object will cause nullPointerException
         this._fingerTable=null;
         this._m=0;
     }
@@ -61,16 +61,24 @@ public class PeerNode extends Node implements Runnable{
             SocketSender socketSender=new SocketSender(randomNode.getIp(),randomNode.getPort());
             //the successor's id must >= (pNode'id + 2^0)%2^m
             int key=(this.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
-            socketSender.sendNode(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
+            socketSender.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
         }
 
 	}
 
     public PeerNode getSuccessor() {return this._fingerTable[0];}
 
-    public synchronized void setSuccessor(PeerNode successor) {this._fingerTable[0]=successor;}
+    public void setSuccessor(PeerNode successor) {
+        synchronized(this){
+            this._fingerTable[0]=successor;
+        }
+    }
 
-    public synchronized void setPredecessor(PeerNode predecessor) {this._predecessor=predecessor;}
+    public void setPredecessor(PeerNode predecessor) {
+        synchronized(this){
+            this._predecessor=predecessor;
+        }
+    }
 
     public PeerNode getPredecessor() {return this._predecessor;}
 
@@ -116,7 +124,7 @@ public class PeerNode extends Node implements Runnable{
      */
     public void find_successor(PeerNode pNode, int key) throws IOException{
         
-        if(Utils.isInRange(key, this.getId(), this.getSuccessor().getId(), true)){
+        if(Utils.isInRange(key, this.getId(), this.getSuccessor().getId(), false, true)){
             SocketSender socketSender=new SocketSender(pNode.getIp(),pNode.getPort());
             socketSender.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this.getSuccessor());
         }
@@ -140,7 +148,7 @@ public class PeerNode extends Node implements Runnable{
     public PeerNode closest_preceding_node(int key){
         for(int i=this._m-1;i>=0;i--){
             if(this._fingerTable[i]!=null){
-                if(Utils.isInRange(this._fingerTable[i].getId(),this.getId(),key,false)==true){
+                if(Utils.isInRange(this._fingerTable[i].getId(),this.getId(),key,false,false)==true){
                     return this._fingerTable[i];
                 }
             }
@@ -159,16 +167,13 @@ public class PeerNode extends Node implements Runnable{
 
     public static void main(String[] args){
         
-        String str_superNodeAddr=Configs.ADDR_SUPERNODE;
+        //supernode address is well-known to peernodes
+        //String str_superNodeAddr=Configs.ADDR_SUPERNODE;
+        //local only
+        String str_superNodeAddr="localhost:1900";
 
-        InetAddress inetAddress=null;
-        try {
-            inetAddress = Utils.getHostInetAddress();
-        } catch (UnknownHostException e) {
-            e.printStackTrace();
-        }
-        
-        String str_hostIp=inetAddress.getHostAddress();
+        /*TODO: Ask user to specify the ip address of the current machine*/
+        String str_hostIp="localhost";
         /*TODO: Ask user to specify the port number */
         String str_hostPort=Utils.getRandomPort(10000, 20000);
         
@@ -184,7 +189,7 @@ public class PeerNode extends Node implements Runnable{
             t.start();
 
             curNode.join(superNodeRMI);
-            curNode.printFT();
+            
             
         }
         catch (Exception e) {

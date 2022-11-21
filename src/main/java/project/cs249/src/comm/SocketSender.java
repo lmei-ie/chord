@@ -24,7 +24,7 @@ public class SocketSender {
 		socket.shutdownOutput();
 	}
 
-	public void sendNodeAndkey(int code, PeerNode node, int key) throws IOException {
+	public void sendNodeAndKey(int code, PeerNode node, int key) throws IOException {
 		oos.writeInt(code);
 		oos.writeObject(node);
 		oos.writeInt(key);
