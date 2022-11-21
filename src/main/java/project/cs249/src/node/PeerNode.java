@@ -59,7 +59,9 @@ public class PeerNode extends Node implements Runnable{
         //if same, there is only one node in the ring.
         if(randomNode.getId()!=this.getId()){
             SocketSender socketSender=new SocketSender(randomNode.getIp(),randomNode.getPort());
-            socketSender.sendNode(Constants.P2P_CMD_FINDSUCCESSOR, this);
+            //the successor's id must >= (pNode'id + 2^0)%2^m
+            int key=(this.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
+            socketSender.sendNode(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
         }
 
 	}
@@ -112,9 +114,8 @@ public class PeerNode extends Node implements Runnable{
      * @return PeerNode
      * @throws IOException
      */
-    public void find_successor(PeerNode pNode) throws IOException{
-        //the successor's id must >= (pNode'id + 2^0)%2^m
-        int key=(pNode.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
+    public void find_successor(PeerNode pNode, int key) throws IOException{
+        
         if(Utils.isInRange(key, this.getId(), this.getSuccessor().getId(), true)){
             SocketSender socketSender=new SocketSender(pNode.getIp(),pNode.getPort());
             socketSender.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this.getSuccessor());
@@ -178,8 +179,8 @@ public class PeerNode extends Node implements Runnable{
             curNode.getNodeInfo(superNodeRMI);
             curNode.ackRegister(superNodeRMI);
             curNode.initializeFT();
-            //create a thread for comm server
-            Thread t=new Thread(curNode);
+            
+            Thread t=new Thread(curNode,"Socket Server");
             t.start();
 
             curNode.join(superNodeRMI);
