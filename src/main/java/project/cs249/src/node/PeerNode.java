@@ -8,6 +8,9 @@ import java.rmi.RemoteException;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import project.cs249.src.comm.SocketClient;
 import project.cs249.src.comm.SocketServer;
@@ -25,8 +28,8 @@ public class PeerNode extends Node{
     private PeerNode[] _fingerTable;
 
     //for refreshing FT table entries.
-
     private volatile int _next;
+
     public PeerNode(String ip, String port) {
         super(ip, port);
         //if conflict, the id should be rehash using the newest timestamp, need it for size of FT?
@@ -38,26 +41,8 @@ public class PeerNode extends Node{
 
     //PeerNode member functions
     private void initializeFT(){
-        //this._fingerTable=new Finger[_m];
         this._fingerTable=new PeerNode[this._m];
-        // for(int i=0;i<_m;i++){
-        //     this._fingerTable[i]=new Finger((this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m)));
-        //     this._fingerTable[i].setSuccessor(this);
-            
-        // }
         this._fingerTable[0]=this;
-
-        // Node randomNode=superNodeRMI.getRamdonNode(this.getId());
-        // Logger.info(PeerNode.class, "random node: "+randomNode.toString());
-        // //not the same node as peerNode
-        // if(randomNode.getId()!=this.getId()){
-        //     // SocketSender socketSender = new SocketSender(randomNode.getIp(), randomNode.getPort());
-        //     // socketSender.sendData(1, this);
-        // }
-        // else{
-        //     this._predecessor=this;
-        //     for(int i=0;i<_m;i++) this._fingerTable[i].setSuccessor(this);
-        // }
     }
 
     public void join(SuperNodeRMI superNodeRMI) throws IOException {
@@ -73,15 +58,12 @@ public class PeerNode extends Node{
             //if null, this node dies? tell the supernode to remove it?
             PeerNode tempSuc=socketClient.readReturnNode();
             socketClient.shutdown();
-            if(tempSuc!=null && tempSuc.getId()!=-1){
+            if(tempSuc.getId()!=-1){
                 Logger.info(PeerNode.class, this.toString()+" received successor "+tempSuc);
                 this.setSuccessor(tempSuc);
-                this.printFT();
                 socketClient=new SocketClient(tempSuc.getIp(),tempSuc.getPort());
                 //tell sucessor to update its predecessor
                 socketClient.sendNode(Constants.P2P_CMD_RECEIVEPREDECESSOR, this);
-            }else{
-                
             }
         }
 
@@ -143,7 +125,7 @@ public class PeerNode extends Node{
      * @return PeerNode
      * @throws IOException
      */
-    public PeerNode find_successor(PeerNode pNode, int key) throws IOException{
+    public PeerNode find_successor(PeerNode pNode, int key){
         Logger.info(PeerNode.class, pNode.toString()+" sucessor key is "+key);
         if(Utils.isInRange(key, this.getId(), this.getSuccessor().getId(), false, true)){
             //SocketClient socketClient=new SocketClient(pNode.getIp(),pNode.getPort());
@@ -159,19 +141,22 @@ public class PeerNode extends Node{
                 return this;
             }
             else{
-                SocketClient socketClient=new SocketClient(hiPredecessor.getIp(),hiPredecessor.getPort());
-                //the successor's id must >= (curNode'id + 2^0)%2^m
-                socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, pNode, key);
-                //use this socket to read?
-                PeerNode tempSuc=socketClient.readReturnNode();
-                socketClient.shutdown();
-                //the first null means hiPredecessor is down?
-                if(tempSuc!=null){
+                SocketClient socketClient=null;
+                try{
+                    socketClient=new SocketClient(hiPredecessor.getIp(),hiPredecessor.getPort());
+                    //the successor's id must >= (curNode'id + 2^0)%2^m
+                    socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, pNode, key);
+                    //use this socket to read?
+                    PeerNode tempSuc=socketClient.readReturnNode();
+                    socketClient.shutdown();
+                    //the first null means hiPredecessor is down?
                     Logger.info(PeerNode.class, "received "+tempSuc.toString()+" from hiPredecessor "+hiPredecessor.toString());
                     return tempSuc;
-                }else{
+                }catch(Exception e){
+                    e.printStackTrace();
                     return new PeerNode("","");
                 }
+                
             }
         }
     }
@@ -249,7 +234,7 @@ public class PeerNode extends Node{
                 this._next++;
                 if(this._next>=this._m) this._next=1;
             }
-            Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+this._next+1);
+            Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+(this._next+1));
             SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
             int key=(this.getId()+(int)Math.pow(2,this._next))%((int)Math.pow(2,_m));
             socketClient.sendNodeAndKey(Constants.P2P_CMD_FIXENTRY, this, key);
@@ -295,18 +280,21 @@ public class PeerNode extends Node{
             //a solution for above is to make main sleep and let thead starts first.
             Thread.sleep(1000);
             curNode.join(superNodeRMI);
-            Timer timer = new Timer();
-            timer.schedule(new TimerTask() {
+            
+            ScheduledExecutorService executorService;
+            executorService = Executors.newSingleThreadScheduledExecutor();
+            executorService.scheduleAtFixedRate(new Runnable() {
                 @Override
                 public void run() {
+                    // TODO Auto-generated method stub
                     try {
                         curNode.stablize();
                     } catch (IOException | InterruptedException e) {
+                        // TODO Auto-generated catch block
                         e.printStackTrace();
-                    }
+                    }       
                 }
-            }, 0, 10000);
-            
+            }, 5, 10, TimeUnit.SECONDS);
         }
         catch (Exception e) {
             e.printStackTrace();
