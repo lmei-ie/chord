@@ -118,7 +118,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
 
     public PeerNode getRamdonNode(int id) throws RemoteException{
         //only one node in the ring, the same node means all entries in the ft is itself
-        if(_idList.size()==1) return _nodeRing[_idList.get(0)];
+        if(_idList.size()==1) return null;
 
         Random rand = new Random();
         int randID = rand.nextInt(_idList.size());
