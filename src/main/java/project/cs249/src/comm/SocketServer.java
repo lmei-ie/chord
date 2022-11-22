@@ -56,6 +56,10 @@ class ServerThread implements Runnable{
                 case Constants.P2P_CMD_NOTIFY:
                     curNode.notifys((PeerNode) ois.readObject());
                 break;
+                case Constants.P2P_CMD_FIXENTRY:
+                    PeerNode retNode=curNode.find_successor((PeerNode) ois.readObject(),ois.readInt());
+                    this.sendNode(retNode, oos);
+                break;
             }
 
         }catch(Exception e){

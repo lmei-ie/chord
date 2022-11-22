@@ -106,7 +106,7 @@ public class PeerNode extends Node{
     public void printFT(){
         Logger.info(PeerNode.class, this.toString()+" finger Table is");
         for(int i=0;i<this._m;i++){
-            if(this._fingerTable[i]==null) System.out.println((i+1)++" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+"NULL");
+            if(this._fingerTable[i]==null) System.out.println((i+1)+" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+"NULL");
             else System.out.println((i+1)+" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+this._fingerTable[i].toString());
         }
     }
@@ -190,7 +190,7 @@ public class PeerNode extends Node{
         return this;
     }
 
-    public void stablize() throws IOException {
+    public void stablize() throws IOException, InterruptedException {
         Logger.info(PeerNode.class, this.toString()+" stablizing...");
         if(this.getSuccessor().getId()!=this.getId()){
             SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
@@ -225,8 +225,9 @@ public class PeerNode extends Node{
                 socketClient.shutdown();
             }
         }
-        Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+this._next);
+        Thread.sleep(1000);
         this.fix_fingers();
+        
         this.printFT();
     }
 
@@ -240,20 +241,25 @@ public class PeerNode extends Node{
 
     }
 
-    public void fix_fingers(){
-        synchronized (this._next){
-            this._next++;
-            if(this._next>this._m) this._next=1;
-        }
-        SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
-        int key=(this.getId()+(int)Math.pow(2,this._next-1))%((int)Math.pow(2,_m));
-        socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
+    public void fix_fingers() throws IOException{
+    
+        //if == then there is only one node in the ring
+        if(this.getSuccessor().getId()!=this.getId()){
+            synchronized (this){
+                this._next++;
+                if(this._next>=this._m) this._next=1;
+            }
+            Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+this._next+1);
+            SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
+            int key=(this.getId()+(int)Math.pow(2,this._next))%((int)Math.pow(2,_m));
+            socketClient.sendNodeAndKey(Constants.P2P_CMD_FIXENTRY, this, key);
 
-        //socket.readObject -> successor / null;
-        //if null, this node dies? tell the supernode to remove it?
-        PeerNode tempSuc=socketClient.readReturnNode();
-        socketClient.shutdown();
-        this._fingerTable[this._next]=tempSuc;
+            //socket.readObject -> successor / null;
+            //if null, this node dies? tell the supernode to remove it?
+            PeerNode tempSuc=socketClient.readReturnNode();
+            socketClient.shutdown();
+            this._fingerTable[this._next]=tempSuc;
+        }
     }
 
     public static void main(String[] args){
@@ -287,15 +293,15 @@ public class PeerNode extends Node{
             //concurrent join will be an issue (no server to connect) b/c join randomly happnes before server starts.
             //(the first joined node does not connect to a socket server b/c it is the only one. )
             //a solution for above is to make main sleep and let thead starts first.
-            Thread.sleep(500);
+            Thread.sleep(1000);
             curNode.join(superNodeRMI);
             Timer timer = new Timer();
-            timer.scheduleAtFixedRate(new TimerTask() {
+            timer.schedule(new TimerTask() {
                 @Override
                 public void run() {
                     try {
                         curNode.stablize();
-                    } catch (IOException e) {
+                    } catch (IOException | InterruptedException e) {
                         e.printStackTrace();
                     }
                 }
