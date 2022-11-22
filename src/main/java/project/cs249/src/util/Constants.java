@@ -11,4 +11,6 @@ public class Constants {
     public static final int P2P_CMD_FINDSUCCESSOR = 112;
     public static final int P2P_CMD_RECEIVESUCCESSOR = 113;
     public static final int P2P_CMD_RECEIVEPREDECESSOR = 114;
+    public static final int P2P_CMD_GETPREDECESSOR = 115;
+    public static final int P2P_CMD_NOTIFY = 116;
 }

@@ -6,8 +6,10 @@ import java.net.UnknownHostException;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
-import project.cs249.src.comm.SocketSender;
+import project.cs249.src.comm.SocketClient;
 import project.cs249.src.comm.SocketServer;
 import project.cs249.src.util.Configs;
 import project.cs249.src.util.Constants;
@@ -22,12 +24,16 @@ public class PeerNode extends Node{
     //private Finger[] _fingerTable;
     private PeerNode[] _fingerTable;
 
+    //for refreshing FT table entries.
+
+    private volatile int _next;
     public PeerNode(String ip, String port) {
         super(ip, port);
         //if conflict, the id should be rehash using the newest timestamp, need it for size of FT?
         this._predecessor=null; //synchronized on null object will cause nullPointerException
         this._fingerTable=null;
         this._m=0;
+        this._next=0;
     }
 
     //PeerNode member functions
@@ -57,14 +63,26 @@ public class PeerNode extends Node{
     public void join(SuperNodeRMI superNodeRMI) throws IOException {
         PeerNode randomNode=superNodeRMI.getRamdonNode(this.getId());
         //if same, there is only one node in the ring.
-        if(randomNode.getId()!=this.getId()){
-            SocketSender socketSender=new SocketSender(randomNode.getIp(),randomNode.getPort());
+        if(randomNode!=null){
+            SocketClient socketClient=new SocketClient(randomNode.getIp(),randomNode.getPort());
             //the successor's id must >= (pNode'id + 2^0)%2^m
             int key=(this.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
-            socketSender.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
+            socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
 
             //socket.readObject -> successor / null;
             //if null, this node dies? tell the supernode to remove it?
+            PeerNode tempSuc=socketClient.readReturnNode();
+            socketClient.shutdown();
+            if(tempSuc!=null && tempSuc.getId()!=-1){
+                Logger.info(PeerNode.class, this.toString()+" received successor "+tempSuc);
+                this.setSuccessor(tempSuc);
+                this.printFT();
+                socketClient=new SocketClient(tempSuc.getIp(),tempSuc.getPort());
+                //tell sucessor to update its predecessor
+                socketClient.sendNode(Constants.P2P_CMD_RECEIVEPREDECESSOR, this);
+            }else{
+                
+            }
         }
 
 	}
@@ -88,8 +106,8 @@ public class PeerNode extends Node{
     public void printFT(){
         Logger.info(PeerNode.class, this.toString()+" finger Table is");
         for(int i=0;i<this._m;i++){
-            if(this._fingerTable[i]==null) System.out.println((i+1)+" NULL");
-            else System.out.println((i+1)+" "+this._fingerTable[i].toString());
+            if(this._fingerTable[i]==null) System.out.println((i+1)++" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+"NULL");
+            else System.out.println((i+1)+" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+this._fingerTable[i].toString());
         }
     }
 
@@ -125,23 +143,35 @@ public class PeerNode extends Node{
      * @return PeerNode
      * @throws IOException
      */
-    public void find_successor(PeerNode pNode, int key) throws IOException{
-        
+    public PeerNode find_successor(PeerNode pNode, int key) throws IOException{
+        Logger.info(PeerNode.class, pNode.toString()+" sucessor key is "+key);
         if(Utils.isInRange(key, this.getId(), this.getSuccessor().getId(), false, true)){
-            SocketSender socketSender=new SocketSender(pNode.getIp(),pNode.getPort());
-            socketSender.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this.getSuccessor());
+            //SocketClient socketClient=new SocketClient(pNode.getIp(),pNode.getPort());
+            //socketClient.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this.getSuccessor());
+            return this.getSuccessor();
         }
         else{
             PeerNode hiPredecessor=this.closest_preceding_node(key);
+            Logger.info(PeerNode.class, "hiPredecessor to key "+key+" is "+hiPredecessor.toString());
             if(hiPredecessor.getId()==this.getId()){
-                SocketSender socketSender=new SocketSender(pNode.getIp(),pNode.getPort());
-                socketSender.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this);
+                //SocketClient socketSender=new SocketClient(pNode.getIp(),pNode.getPort());
+                //socketSender.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this);
+                return this;
             }
             else{
-                SocketSender socketSender=new SocketSender(hiPredecessor.getIp(),hiPredecessor.getPort());
+                SocketClient socketClient=new SocketClient(hiPredecessor.getIp(),hiPredecessor.getPort());
                 //the successor's id must >= (curNode'id + 2^0)%2^m
-                socketSender.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, pNode, key);
+                socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, pNode, key);
                 //use this socket to read?
+                PeerNode tempSuc=socketClient.readReturnNode();
+                socketClient.shutdown();
+                //the first null means hiPredecessor is down?
+                if(tempSuc!=null){
+                    Logger.info(PeerNode.class, "received "+tempSuc.toString()+" from hiPredecessor "+hiPredecessor.toString());
+                    return tempSuc;
+                }else{
+                    return new PeerNode("","");
+                }
             }
         }
     }
@@ -158,6 +188,72 @@ public class PeerNode extends Node{
             }
         }
         return this;
+    }
+
+    public void stablize() throws IOException {
+        Logger.info(PeerNode.class, this.toString()+" stablizing...");
+        if(this.getSuccessor().getId()!=this.getId()){
+            SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
+            socketClient.sendCmd(Constants.P2P_CMD_GETPREDECESSOR);
+            PeerNode x=socketClient.readReturnNode();
+            socketClient.shutdown();
+            if(this.getSuccessor().getPredecessor()==null || this.getSuccessor().getPredecessor().getId()!=x.getId()){
+                Logger.info(PeerNode.class, "Predecessor for "+this.getSuccessor().toString()+" is "+x.toString());
+                //local p=copy of successor's precedessor needs to update too, which reducing socket connection for notifys
+                this.getSuccessor().setPredecessor(x);
+                if(Utils.isInRange(x.getId(), this.getId(), this.getSuccessor().getId(), false, false)){
+                    this.setSuccessor(x);
+                }
+                socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
+                socketClient.sendNode(Constants.P2P_CMD_NOTIFY, this);
+                socketClient.shutdown();
+            }
+        }
+        //the first joined node's successor is itself. and no change in sucessor should result in no need to stablize;
+        else{
+            //the first joined node, if its predecessor should be null, it does nothing until the predecessor is updated.
+            //when the first node's predecessor got updated.
+            if(this.getPredecessor()!=null){
+                PeerNode x=this.getPredecessor();
+                Logger.info(PeerNode.class, "Predecessor for "+this.getSuccessor().toString()+" is "+x.toString());
+                //updates its successor from itself to the correct one.
+                if(Utils.isInRange(x.getId(), this.getId(), this.getSuccessor().getId(), false, false)){
+                    this.setSuccessor(x);
+                }
+                SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
+                socketClient.sendNode(Constants.P2P_CMD_NOTIFY, this);
+                socketClient.shutdown();
+            }
+        }
+        Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+this._next);
+        this.fix_fingers();
+        this.printFT();
+    }
+
+    public void notifys(PeerNode node){
+
+        if(this.getPredecessor()==null || Utils.isInRange(node.getId(), this.getPredecessor().getId(), this.getId(), false, false)){
+            this.setPredecessor(node);
+            Logger.info(PeerNode.class, this.toString()+" is notified to update its predecessor to "+node.toString());
+        }
+        
+
+    }
+
+    public void fix_fingers(){
+        synchronized (this._next){
+            this._next++;
+            if(this._next>this._m) this._next=1;
+        }
+        SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
+        int key=(this.getId()+(int)Math.pow(2,this._next-1))%((int)Math.pow(2,_m));
+        socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, this, key);
+
+        //socket.readObject -> successor / null;
+        //if null, this node dies? tell the supernode to remove it?
+        PeerNode tempSuc=socketClient.readReturnNode();
+        socketClient.shutdown();
+        this._fingerTable[this._next]=tempSuc;
     }
 
     public static void main(String[] args){
@@ -193,7 +289,17 @@ public class PeerNode extends Node{
             //a solution for above is to make main sleep and let thead starts first.
             Thread.sleep(500);
             curNode.join(superNodeRMI);
-            System.out.println("test");
+            Timer timer = new Timer();
+            timer.scheduleAtFixedRate(new TimerTask() {
+                @Override
+                public void run() {
+                    try {
+                        curNode.stablize();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }, 0, 10000);
             
         }
         catch (Exception e) {
