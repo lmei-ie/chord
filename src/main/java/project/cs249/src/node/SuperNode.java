@@ -108,7 +108,6 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
     }
 
     public void ackRegister(Node node) throws RemoteException{
-        /*TODO: release _busy after a certain amount of time if no ACK */
         if(this._busy==true){
             synchronized(this){
                 _busy=false;
@@ -149,7 +148,13 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
         Logger.info(SuperNode.class,this.toString());
     }
 
+    public ArrayList<Integer> getIdList() throws RemoteException{
+        return new ArrayList<>(this._idList);
+    } 
 
+    public Node getNode(int id) throws RemoteException{
+        return this._nodeRing[id];
+    }
     @Override
     public String toString() {
         StringBuilder sb_ret=new StringBuilder();
@@ -181,7 +186,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             Thread.sleep(1000);
             ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(1);
             Runnable runnable=()->{superNode.freeSupernode();};
-            scheduledThreadPoolExecutor.scheduleAtFixedRate(runnable, 4,10, TimeUnit.SECONDS);
+            scheduledThreadPoolExecutor.scheduleAtFixedRate(runnable, 120,300, TimeUnit.SECONDS);
         }
         catch(Exception e)
         {

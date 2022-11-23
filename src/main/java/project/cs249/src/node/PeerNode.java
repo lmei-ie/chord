@@ -1,7 +1,6 @@
 package project.cs249.src.node;
 
 import java.io.IOException;
-
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.rmi.Naming;
@@ -13,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 
 import project.cs249.src.comm.SocketClient;
 import project.cs249.src.comm.SocketServer;
+import project.cs249.src.util.Configs;
 import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
 import project.cs249.src.util.Utils;
@@ -48,7 +48,7 @@ public class PeerNode extends Node{
     public void join() throws IOException {
         Node randomNode=this._superNodeRMI.getRamdonNode(this.getId());
         //if same, there is only one node in the ring.
-        if(randomNode!=null){
+        if(randomNode!=null && randomNode.getId()!=this.getId()){
             SocketClient socketClient=null;
             Node tempSuc = null;
             try{
@@ -267,17 +267,20 @@ public class PeerNode extends Node{
 
     public void fix_fingers(){
         System.out.println("----------------------------fix FT--------------------------------");
-        //if == then there is only one node in the ring
-        if(this.getSuccessor()!=null && this.getSuccessor().getId()!=this.getId()){
-            synchronized (this){
-                this._next++;
-                if(this._next>=this._m) this._next=1;
-            }
-            
-            Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+(this._next+1));
-            SocketClient socketClient=null;
-            try {
-                socketClient = new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
+
+        synchronized (this){
+            this._next++;
+            if(this._next>=this._m) this._next=1;
+        }
+        
+        Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+(this._next+1));
+        SocketClient socketClient=null;
+        try {
+            Node randomNode=this._superNodeRMI.getRamdonNode(this.getId());
+            //if == then there is only one node in the ring
+            if(randomNode!=null && randomNode.getId()!=this.getId()){  
+                socketClient = new SocketClient(randomNode.getIp(),randomNode.getPort());
+                
                 int key=(this.getId()+(int)Math.pow(2,this._next))%((int)Math.pow(2,_m));
                 socketClient.sendNodeAndKey(Constants.P2P_CMD_FIXENTRY, this, key);
     
@@ -285,12 +288,14 @@ public class PeerNode extends Node{
                 //if null, this node dies? tell the supernode to remove it?
                 Node tempSuc=socketClient.readReturnNode();
                 this._fingerTable[this._next]=tempSuc;
-            } catch (IOException e) {
-                this._fingerTable[this._next]=null;
-                Logger.error(PeerNode.class, "fix FT "+e.getMessage());
-            }finally{if(socketClient!=null) socketClient.shutdown();}
-            
-        }
+            }
+            else{
+                if(this._fingerTable[this._next]!=null) this._fingerTable[this._next]=null;
+            }
+        }catch (IOException e) {
+            this._fingerTable[this._next]=null;
+            Logger.error(PeerNode.class, "fix FT "+e.getMessage());
+        }finally{if(socketClient!=null) socketClient.shutdown();}
     }
 
     //heartbeat
@@ -329,12 +334,19 @@ public class PeerNode extends Node{
         }
     }
 
+    public String getStrFT() {
+        StringBuilder sb=new StringBuilder();
+        for(int i=0;i<this._m;i++){
+            if(this._fingerTable[i]==null) sb.append((i+1)+" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+"NULL\n");
+            else sb.append((i+1)+" "+(this.getId()+(int)Math.pow(2,i))%((int)Math.pow(2,_m))+" "+this._fingerTable[i].toString()+"\n");
+        }
+        return sb.toString();
+    }
+
     public static void main(String[] args){
         
         //supernode address is well-known to peernodes
-        //String str_superNodeAddr=Configs.ADDR_SUPERNODE;
-        //local only
-        String str_superNodeAddr="localhost:1900";
+        String str_superNodeAddr=Configs.ADDR_SUPERNODE;
 
         /*TODO: Ask user to specify the ip address of the current machine*/
         String str_hostIp="localhost";
@@ -393,9 +405,9 @@ public class PeerNode extends Node{
                     curNode.stablize();
                     TimeUnit.SECONDS.sleep(2);
                     curNode.fix_fingers();
-                    TimeUnit.SECONDS.sleep(2);
+                    //TimeUnit.SECONDS.sleep(2);
                     curNode.printFT();
-                    TimeUnit.SECONDS.sleep(2);
+                    //TimeUnit.SECONDS.sleep(2);
                     curNode.check_predecessor();
                 } catch (InterruptedException e1) {
                     Logger.error(TimeUnit.class, e1.getMessage());

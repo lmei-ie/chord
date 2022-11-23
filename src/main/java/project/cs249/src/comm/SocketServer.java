@@ -35,6 +35,11 @@ class ServerThread implements Runnable{
         oos.flush();
     }
 
+    public void sendInfo(String str_ft) throws IOException {
+        oos.writeObject(str_ft);
+		oos.flush();
+    }
+
     @Override
     public void run() {
         try{
@@ -68,6 +73,13 @@ class ServerThread implements Runnable{
                 case Constants.P2P_CMD_HEARTBEAT:
                     this.sendCode(Constants.P2P_CODE_ACK);
                 break;
+                case Constants.DEMO_CMD_GETFT:
+                    String str_ft=curNode.getStrFT();
+                    this.sendInfo(str_ft);
+                break;
+                case Constants.DEMO_CMD_SHUTDOWN:
+                    System.exit(0);
+                break;
             }
 
         }catch(Exception e){
@@ -82,6 +94,7 @@ class ServerThread implements Runnable{
             }
         }
     }
+
 }
 
 public class SocketServer {

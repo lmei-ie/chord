@@ -60,6 +60,16 @@ public class SocketClient {
 		return ret;
 	}
 
+	public String readInfo() {
+        String ret=null;
+		try{
+			ret=(String)ois.readObject();
+		}catch(Exception e){
+			Logger.error(SocketClient.class, "readInfo "+e.getMessage());
+		}
+		return ret;
+    }
+
 	public void shutdown(){
 		try {
 			if(this.ois!=null) this.ois.close();

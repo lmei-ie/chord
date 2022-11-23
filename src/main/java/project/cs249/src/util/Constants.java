@@ -17,4 +17,7 @@ public class Constants {
     public static final int P2P_CMD_HEARTBEAT = 118;
 
     public static final int P2P_CODE_ACK = 1111;
+
+    public static final int DEMO_CMD_GETFT = 11111;
+    public static final int DEMO_CMD_SHUTDOWN = 11112;
 }
