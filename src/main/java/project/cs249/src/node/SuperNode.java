@@ -28,7 +28,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
      private static int _maxNumNodes;
 
      private int _numNodes;
-     private PeerNode[] _nodeRing;
+     private Node[] _nodeRing;
      private volatile boolean _busy;
      private List<Integer> _idList;
 
@@ -63,7 +63,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
      * @throws RemoteException
      */
     @Override
-    public String getNodeInfo(PeerNode node) throws RemoteException{
+    public String getNodeInfo(Node node) throws RemoteException{
         Map<String,Object> map_res=new HashMap<>();
         Logger.info(SuperNode.class,node.toString()+" invoked getLiveInfo");
         if(!_busy){
@@ -107,7 +107,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
         return Utils.mapToString(map_res);
     }
 
-    public void ackRegister(PeerNode node) throws RemoteException{
+    public void ackRegister(Node node) throws RemoteException{
         /*TODO: release _busy after a certain amount of time if no ACK */
         if(this._busy==true){
             synchronized(this){
@@ -126,7 +126,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
         }
     }
 
-    public PeerNode getRamdonNode(int id) throws RemoteException{
+    public Node getRamdonNode(int id) throws RemoteException{
         //only one node in the ring, the same node means all entries in the ft is itself
         if(_idList.size()<1) return null;
 

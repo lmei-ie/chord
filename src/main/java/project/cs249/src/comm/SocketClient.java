@@ -6,7 +6,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
 
-import project.cs249.src.node.PeerNode;
+import project.cs249.src.node.Node;
 import project.cs249.src.util.Logger;
 
 public class SocketClient {
@@ -21,13 +21,13 @@ public class SocketClient {
 	}
 
 
-    public void sendNode(int code, PeerNode node) throws IOException {
+    public void sendNode(int code, Node node) throws IOException {
 		oos.writeInt(code);
 		oos.writeObject(node);
 		oos.flush();
 	}
 
-	public void sendNodeAndKey(int code, PeerNode node, int key) throws IOException {
+	public void sendNodeAndKey(int code, Node node, int key) throws IOException {
 		oos.writeInt(code);
 		oos.writeObject(node);
 		oos.writeInt(key);
@@ -40,10 +40,10 @@ public class SocketClient {
 		oos.flush();
 	}
 
-	public PeerNode readReturnNode(){
-		PeerNode ret=null;
+	public Node readReturnNode(){
+		Node ret=null;
 		try{
-			ret=(PeerNode)ois.readObject();
+			ret=(Node)ois.readObject();
 		}catch(Exception e){
 			Logger.error(SocketClient.class, "readReturnNode "+e.getMessage());
 		}
