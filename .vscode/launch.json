@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Launch Demo",
+            "request": "launch",
+            "mainClass": "project.cs249.src.node.Demo",
+            "projectName": "chord"
+        },
+        {
+            "type": "java",
             "name": "Launch PeerNode",
             "request": "launch",
             "mainClass": "project.cs249.src.node.PeerNode",
