@@ -49,16 +49,28 @@ public class PeerNode extends Node{
         Node randomNode=this._superNodeRMI.getRamdonNode(this.getId());
         //if same, there is only one node in the ring.
         if(randomNode!=null){
-            SocketClient socketClient=new SocketClient(randomNode.getIp(),randomNode.getPort());
-            //the successor's id must >= (pNode'id + 2^0)%2^m
-            int key=(this.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
-            socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, (Node)this, key);
+            SocketClient socketClient=null;
+            Node tempSuc = null;
+            try{
+                socketClient=new SocketClient(randomNode.getIp(),randomNode.getPort());
+                //the successor's id must >= (pNode'id + 2^0)%2^m
+                int key=(this.getId()+(int)Math.pow(2,0))%((int)Math.pow(2,_m));
+                socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, (Node)this, key);
 
-            //socket.readObject -> successor / null;
-            //if null, this node dies? tell the supernode to remove it?
-            Node tempSuc=socketClient.readReturnNode();
-            if(socketClient!=null) socketClient.shutdown();
-            if(tempSuc!=null && tempSuc.getId()!=-1){
+                //socket.readObject -> successor / null;
+                //if null, this node dies? tell the supernode to remove it?
+                tempSuc=socketClient.readReturnNode();
+            }catch(IOException e){
+                Logger.error(PeerNode.class, randomNode.toString()+" failed");
+                if(socketClient!=null) socketClient.shutdown();
+                try {
+                    this._superNodeRMI.removeNode(randomNode.getId());
+                } catch (RemoteException e1) {
+                    Logger.error(PeerNode.class, "RMI removeNode error.");
+                }
+            }
+            
+            if(tempSuc!=null){
                 Logger.info(PeerNode.class, this.toString()+" received successor "+tempSuc);
                 this.setSuccessor(tempSuc);
                 socketClient=new SocketClient(tempSuc.getIp(),tempSuc.getPort());
@@ -67,6 +79,7 @@ public class PeerNode extends Node{
                 if(socketClient!=null) socketClient.shutdown();
                 this._superNodeRMI.ackRegister(this);
             }
+            else this.join();
         }
         else this._superNodeRMI.ackRegister(this);
 
@@ -158,8 +171,7 @@ public class PeerNode extends Node{
                     Logger.error(PeerNode.class, "failed to receive from hiPredecessor "+e.getMessage());
                     if(socketClient!=null) socketClient.shutdown();
                     try {
-                        this._superNodeRMI.removeNode(this.getPredecessor().getId());
-                        this.setPredecessor(null);
+                        this._superNodeRMI.removeNode(hiPredecessor.getId());
                     } catch (RemoteException e1) {
                         Logger.error(PeerNode.class, "RMI removeNode error.");
                     }
@@ -256,11 +268,12 @@ public class PeerNode extends Node{
     public void fix_fingers(){
         System.out.println("----------------------------fix FT--------------------------------");
         //if == then there is only one node in the ring
-        if(this.getSuccessor().getId()!=this.getId()){
+        if(this.getSuccessor()!=null && this.getSuccessor().getId()!=this.getId()){
             synchronized (this){
                 this._next++;
                 if(this._next>=this._m) this._next=1;
             }
+            
             Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+(this._next+1));
             SocketClient socketClient=null;
             try {
@@ -276,6 +289,7 @@ public class PeerNode extends Node{
                 this._fingerTable[this._next]=null;
                 Logger.error(PeerNode.class, "fix FT "+e.getMessage());
             }finally{if(socketClient!=null) socketClient.shutdown();}
+            
         }
     }
 
@@ -377,11 +391,11 @@ public class PeerNode extends Node{
             Runnable runnable=()->{
                 try {
                     curNode.stablize();
-                    TimeUnit.SECONDS.sleep(1);
+                    TimeUnit.SECONDS.sleep(2);
                     curNode.fix_fingers();
-                    TimeUnit.SECONDS.sleep(1);
+                    TimeUnit.SECONDS.sleep(2);
                     curNode.printFT();
-                    TimeUnit.SECONDS.sleep(3);
+                    TimeUnit.SECONDS.sleep(2);
                     curNode.check_predecessor();
                 } catch (InterruptedException e1) {
                     Logger.error(TimeUnit.class, e1.getMessage());

@@ -146,7 +146,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
         this._idList.remove(Integer.valueOf(id));
         this._nodeRing[id]=null;
         this._numNodes--;
-        this.toString();
+        Logger.info(SuperNode.class,this.toString());
     }
 
 
