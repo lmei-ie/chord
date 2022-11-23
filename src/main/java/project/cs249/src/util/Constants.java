@@ -14,4 +14,7 @@ public class Constants {
     public static final int P2P_CMD_GETPREDECESSOR = 115;
     public static final int P2P_CMD_NOTIFY = 116;
     public static final int P2P_CMD_FIXENTRY = 117;
+    public static final int P2P_CMD_HEARTBEAT = 118;
+
+    public static final int P2P_CODE_ACK = 1111;
 }

@@ -15,24 +15,28 @@ import project.cs249.src.util.Logger;
 class ServerThread implements Runnable{
     private Socket socket;
     private PeerNode curNode;
-    public ServerThread(Socket socket, PeerNode node){
+    private ObjectInputStream ois=null;
+    private ObjectOutputStream oos=null;
+    public ServerThread(Socket socket, PeerNode node) throws IOException{
         this.socket=socket;
         this.curNode=node;
+        this.ois=new ObjectInputStream(this.socket.getInputStream());
+        this.oos=new ObjectOutputStream(this.socket.getOutputStream()); 
     }
 
-    public void sendNode(PeerNode node,ObjectOutputStream oos) throws IOException {
+    public void sendNode(PeerNode node) throws IOException {
 		oos.writeObject(node);
 		oos.flush();
-		socket.shutdownOutput();
 	}
+
+    public void sendCode(int code) throws IOException{
+        oos.writeInt(code);
+        oos.flush();
+    }
 
     @Override
     public void run() {
-        ObjectInputStream ois=null;
-        ObjectOutputStream oos=null;
         try{
-            ois=new ObjectInputStream(this.socket.getInputStream());
-            oos=new ObjectOutputStream(this.socket.getOutputStream()); 
             int code = ois.readInt();
             switch (code){
                 case Constants.P2P_CMD_FINDSUCCESSOR:
@@ -41,7 +45,7 @@ class ServerThread implements Runnable{
                     Logger.info(ServerThread.class, curNode.toString()+ " find successor for " + queryNode.toString());
                     PeerNode suc_queryNode=curNode.find_successor(queryNode,key);
                     Logger.info(ServerThread.class, queryNode.toString()+" 's successor is "+suc_queryNode.toString());
-                    this.sendNode(suc_queryNode, oos);
+                    this.sendNode(suc_queryNode);
                 break;
                 case Constants.P2P_CMD_RECEIVESUCCESSOR:
                 break;
@@ -51,24 +55,29 @@ class ServerThread implements Runnable{
                     curNode.setPredecessor(predecessor);
                 break;
                 case Constants.P2P_CMD_GETPREDECESSOR:
-                    this.sendNode(curNode.getPredecessor(), oos);
+                    this.sendNode(curNode.getPredecessor());
                 break;
                 case Constants.P2P_CMD_NOTIFY:
                     curNode.notifys((PeerNode) ois.readObject());
                 break;
                 case Constants.P2P_CMD_FIXENTRY:
                     PeerNode retNode=curNode.find_successor((PeerNode) ois.readObject(),ois.readInt());
-                    this.sendNode(retNode, oos);
+                    this.sendNode(retNode);
+                break;
+                case Constants.P2P_CMD_HEARTBEAT:
+                    this.sendCode(Constants.P2P_CODE_ACK);
                 break;
             }
 
         }catch(Exception e){
-            e.printStackTrace();
+            Logger.error(ServerThread.class, e.getMessage());
         }finally{
             try{
+                if(this.ois!=null) this.ois.close();
+			    if(this.oos!=null) this.oos.close();
                 if(socket!=null) socket.close();
             }catch(Exception e){
-                e.printStackTrace();
+                Logger.error(Socket.class, "socket close "+e.getMessage());
             }
         }
     }
@@ -100,12 +109,12 @@ public class SocketServer {
                 thread_cur.start();
             }
         }catch(IOException e){
-            e.printStackTrace();
+            Logger.error(SocketServer.class, e.getMessage());
         }finally{
             try{
                 serverSocket.close();
             }catch(IOException e){
-                e.printStackTrace();
+                Logger.error(ServerSocket.class, "serverSocket close "+e.getMessage());
             }
         }
     }

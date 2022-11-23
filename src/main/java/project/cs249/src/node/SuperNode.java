@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
@@ -27,7 +29,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
 
      private int _numNodes;
      private PeerNode[] _nodeRing;
-     private boolean _busy;
+     private volatile boolean _busy;
      private List<Integer> _idList;
 
     public SuperNode(int m) throws RemoteException{
@@ -93,7 +95,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
                     map_res.put("m",_m);
                 }
                 catch(NoSuchAlgorithmException e){
-                    e.printStackTrace();
+                    Logger.error(SuperNode.class, e.getMessage());
                     map_res.put("message","RMI error");
                 }
             }
@@ -107,18 +109,26 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
 
     public void ackRegister(PeerNode node) throws RemoteException{
         /*TODO: release _busy after a certain amount of time if no ACK */
-        synchronized(this){
-            _busy=false;
-            _nodeRing[node.getId()]=node;
-            _numNodes++;
-            _idList.add(node.getId());
+        if(this._busy==true){
+            synchronized(this){
+                _busy=false;
+                _nodeRing[node.getId()]=node;
+                _numNodes++;
+                _idList.add(node.getId());
+            }
+            Logger.info(SuperNode.class,this.toString());
         }
-        Logger.info(SuperNode.class,this.toString());
+    }
+
+    private void freeSupernode(){
+        if(this._busy==true){
+            synchronized(this){this._busy=false;}
+        }
     }
 
     public PeerNode getRamdonNode(int id) throws RemoteException{
         //only one node in the ring, the same node means all entries in the ft is itself
-        if(_idList.size()==1) return null;
+        if(_idList.size()<1) return null;
 
         Random rand = new Random();
         int randID = rand.nextInt(_idList.size());
@@ -129,6 +139,14 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             targetIdx = _idList.get(randID);
         }
         return _nodeRing[targetIdx];
+    }
+
+    public synchronized void removeNode(int id) throws RemoteException{
+        Logger.info(SuperNode.class, "removing node "+id);
+        this._idList.remove(Integer.valueOf(id));
+        this._nodeRing[id]=null;
+        this._numNodes--;
+        this.toString();
     }
 
 
@@ -160,6 +178,10 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             //ip should change to the real ip of server.
             // Binds the remote object by the name geeksforgeeks
             Naming.rebind("rmi://localhost:1900/SuperNodeRMI",superNode);
+            Thread.sleep(1000);
+            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(1);
+            Runnable runnable=()->{superNode.freeSupernode();};
+            scheduledThreadPoolExecutor.scheduleAtFixedRate(runnable, 4,10, TimeUnit.SECONDS);
         }
         catch(Exception e)
         {

@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 
 import project.cs249.src.node.PeerNode;
+import project.cs249.src.util.Logger;
 
 public class SocketClient {
     private ObjectOutputStream oos;
@@ -43,16 +45,28 @@ public class SocketClient {
 		try{
 			ret=(PeerNode)ois.readObject();
 		}catch(Exception e){
-			e.printStackTrace();
+			Logger.error(SocketClient.class, "readReturnNode "+e.getMessage());
+		}
+		return ret;
+	}
+
+	public int readCode(){
+		int ret=-1;
+		try{
+			ret=ois.readInt();
+		}catch(Exception e){
+			Logger.error(SocketClient.class, "readCode "+e.getMessage());
 		}
 		return ret;
 	}
 
 	public void shutdown(){
 		try {
+			if(this.ois!=null) this.ois.close();
+			if(this.oos!=null) this.oos.close();
 			if(this.socket!=null) this.socket.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			Logger.error(SocketClient.class, "shutdown "+e.getMessage());
 		}
 	}
 
@@ -60,5 +74,11 @@ public class SocketClient {
 	public void sendCmd(int code) throws IOException {
 		oos.writeInt(code);
 		oos.flush();
+	}
+
+	public void setTimeout(int timeout) throws SocketException{
+
+		this.socket.setSoTimeout(timeout);
+
 	}
 }

@@ -1,16 +1,26 @@
 package project.cs249.src.node;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
+import java.sql.Time;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+
+import javax.xml.catalog.Catalog;
 
 import project.cs249.src.comm.SocketClient;
 import project.cs249.src.comm.SocketServer;
@@ -57,15 +67,18 @@ public class PeerNode extends Node{
             //socket.readObject -> successor / null;
             //if null, this node dies? tell the supernode to remove it?
             PeerNode tempSuc=socketClient.readReturnNode();
-            socketClient.shutdown();
-            if(tempSuc.getId()!=-1){
+            if(socketClient!=null) socketClient.shutdown();
+            if(tempSuc!=null && tempSuc.getId()!=-1){
                 Logger.info(PeerNode.class, this.toString()+" received successor "+tempSuc);
                 this.setSuccessor(tempSuc);
                 socketClient=new SocketClient(tempSuc.getIp(),tempSuc.getPort());
                 //tell sucessor to update its predecessor
                 socketClient.sendNode(Constants.P2P_CMD_RECEIVEPREDECESSOR, this);
+                if(socketClient!=null) socketClient.shutdown();
+                superNodeRMI.ackRegister(this);
             }
         }
+        else superNodeRMI.ackRegister(this);
 
 	}
 
@@ -126,7 +139,7 @@ public class PeerNode extends Node{
      * @throws IOException
      */
     public PeerNode find_successor(PeerNode pNode, int key){
-        Logger.info(PeerNode.class, pNode.toString()+" sucessor key is "+key);
+        //Logger.info(PeerNode.class, pNode.toString()+" sucessor key is "+key);
         if(Utils.isInRange(key, this.getId(), this.getSuccessor().getId(), false, true)){
             //SocketClient socketClient=new SocketClient(pNode.getIp(),pNode.getPort());
             //socketClient.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this.getSuccessor());
@@ -134,7 +147,7 @@ public class PeerNode extends Node{
         }
         else{
             PeerNode hiPredecessor=this.closest_preceding_node(key);
-            Logger.info(PeerNode.class, "hiPredecessor to key "+key+" is "+hiPredecessor.toString());
+            //Logger.info(PeerNode.class, "hiPredecessor to key "+key+" is "+hiPredecessor.toString());
             if(hiPredecessor.getId()==this.getId()){
                 //SocketClient socketSender=new SocketClient(pNode.getIp(),pNode.getPort());
                 //socketSender.sendNode(Constants.P2P_CMD_RECEIVESUCCESSOR, this);
@@ -148,13 +161,19 @@ public class PeerNode extends Node{
                     socketClient.sendNodeAndKey(Constants.P2P_CMD_FINDSUCCESSOR, pNode, key);
                     //use this socket to read?
                     PeerNode tempSuc=socketClient.readReturnNode();
-                    socketClient.shutdown();
                     //the first null means hiPredecessor is down?
                     Logger.info(PeerNode.class, "received "+tempSuc.toString()+" from hiPredecessor "+hiPredecessor.toString());
                     return tempSuc;
                 }catch(Exception e){
-                    e.printStackTrace();
-                    return new PeerNode("","");
+                    Logger.error(PeerNode.class, "failed to receive from hiPredecessor "+e.getMessage());
+                    if(socketClient!=null) socketClient.shutdown();
+                    // try {
+                    //     superNodeRMI.removeNode(this.getPredecessor().getId());
+                    //     this.setPredecessor(null);
+                    // } catch (RemoteException e1) {
+                    //     Logger.error(PeerNode.class, "RMI removeNode error.");
+                    // }
+                    return null;
                 }
                 
             }
@@ -175,24 +194,39 @@ public class PeerNode extends Node{
         return this;
     }
 
-    public void stablize() throws IOException, InterruptedException {
-        Logger.info(PeerNode.class, this.toString()+" stablizing...");
+    public void stablize(){
+        System.out.println("----------------------------stablize------------------------------");
+        
         if(this.getSuccessor().getId()!=this.getId()){
-            SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
-            socketClient.sendCmd(Constants.P2P_CMD_GETPREDECESSOR);
-            PeerNode x=socketClient.readReturnNode();
-            socketClient.shutdown();
-            if(this.getSuccessor().getPredecessor()==null || this.getSuccessor().getPredecessor().getId()!=x.getId()){
+            SocketClient socketClient=null;
+            try{
+                socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
+                socketClient.sendCmd(Constants.P2P_CMD_GETPREDECESSOR);
+                PeerNode x=socketClient.readReturnNode();
+                if(socketClient!=null) socketClient.shutdown();
+                //if(this.getSuccessor().getPredecessor()==null || this.getSuccessor().getPredecessor().getId()!=x.getId()){
                 Logger.info(PeerNode.class, "Predecessor for "+this.getSuccessor().toString()+" is "+x.toString());
                 //local p=copy of successor's precedessor needs to update too, which reducing socket connection for notifys
                 this.getSuccessor().setPredecessor(x);
                 if(Utils.isInRange(x.getId(), this.getId(), this.getSuccessor().getId(), false, false)){
                     this.setSuccessor(x);
                 }
+                Logger.info(PeerNode.class, "Successor for "+this.getSuccessor().toString()+" is "+x.toString());
+            }catch(IOException e){
+                Logger.error(PeerNode.class, "stablize fail to connect to "+this.getSuccessor());
+                this.setSuccessor(this);
+                if(socketClient!=null) socketClient.shutdown();
+                return;
+            }
+            try{
                 socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
                 socketClient.sendNode(Constants.P2P_CMD_NOTIFY, this);
-                socketClient.shutdown();
-            }
+                
+            }catch(IOException e){
+                Logger.error(PeerNode.class, "stablize fail to connect to "+this.getSuccessor());
+                this.setSuccessor(this);
+            }finally{if(socketClient!=null) socketClient.shutdown();}
+
         }
         //the first joined node's successor is itself. and no change in sucessor should result in no need to stablize;
         else{
@@ -205,15 +239,18 @@ public class PeerNode extends Node{
                 if(Utils.isInRange(x.getId(), this.getId(), this.getSuccessor().getId(), false, false)){
                     this.setSuccessor(x);
                 }
-                SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
-                socketClient.sendNode(Constants.P2P_CMD_NOTIFY, this);
-                socketClient.shutdown();
+                SocketClient socketClient=null;
+                try{
+                    socketClient=new SocketClient(this.getSuccessor().getIp(), this.getSuccessor().getPort());
+                    socketClient.sendNode(Constants.P2P_CMD_NOTIFY, this);
+                }catch(IOException e){
+                    Logger.error(PeerNode.class, "stablize fail to connect to"+this.getSuccessor());
+                    this.setSuccessor(this);
+                }finally{if(socketClient!=null) socketClient.shutdown();};
             }
         }
-        Thread.sleep(1000);
-        this.fix_fingers();
         
-        this.printFT();
+
     }
 
     public void notifys(PeerNode node){
@@ -226,8 +263,8 @@ public class PeerNode extends Node{
 
     }
 
-    public void fix_fingers() throws IOException{
-    
+    public void fix_fingers(){
+        System.out.println("----------------------------fix FT--------------------------------");
         //if == then there is only one node in the ring
         if(this.getSuccessor().getId()!=this.getId()){
             synchronized (this){
@@ -235,15 +272,56 @@ public class PeerNode extends Node{
                 if(this._next>=this._m) this._next=1;
             }
             Logger.info(PeerNode.class, this.toString()+" fixing fingerTable entry "+(this._next+1));
-            SocketClient socketClient=new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
-            int key=(this.getId()+(int)Math.pow(2,this._next))%((int)Math.pow(2,_m));
-            socketClient.sendNodeAndKey(Constants.P2P_CMD_FIXENTRY, this, key);
+            SocketClient socketClient=null;
+            try {
+                socketClient = new SocketClient(this.getSuccessor().getIp(),this.getSuccessor().getPort());
+                int key=(this.getId()+(int)Math.pow(2,this._next))%((int)Math.pow(2,_m));
+                socketClient.sendNodeAndKey(Constants.P2P_CMD_FIXENTRY, this, key);
+    
+                //socket.readObject -> successor / null;
+                //if null, this node dies? tell the supernode to remove it?
+                PeerNode tempSuc=socketClient.readReturnNode();
+                this._fingerTable[this._next]=tempSuc;
+            } catch (IOException e) {
+                this._fingerTable[this._next]=null;
+                Logger.error(PeerNode.class, "fix FT "+e.getMessage());
+            }finally{if(socketClient!=null) socketClient.shutdown();}
+        }
+    }
 
-            //socket.readObject -> successor / null;
-            //if null, this node dies? tell the supernode to remove it?
-            PeerNode tempSuc=socketClient.readReturnNode();
-            socketClient.shutdown();
-            this._fingerTable[this._next]=tempSuc;
+    //heartbeat
+    public void check_predecessor(SuperNodeRMI superNodeRMI){
+        System.out.println("-------------------------check predecessor------------------------");
+        if(this.getPredecessor()!=null){
+            Logger.info(PeerNode.class,this.toString()+" sending heartbeat to predecessor "+this.getPredecessor().toString());
+            SocketClient socketClient=null;
+            boolean flag_removeNode=false;
+            try {
+                socketClient=new SocketClient(this.getPredecessor().getIp(),this.getPredecessor().getPort());
+                //if no ack returned by the predecessor in 10s, we determin it dead.
+                socketClient.setTimeout(10);
+                socketClient.sendCmd(Constants.P2P_CMD_HEARTBEAT);
+                int resCode=socketClient.readCode();
+                if(resCode!=Constants.P2P_CODE_ACK) throw new SocketTimeoutException("Predecessor does not ACK.");
+                Logger.info(PeerNode.class,this.toString()+" received ACK from "+this.getPredecessor().toString());
+            }
+            catch (SocketTimeoutException | SocketException se) {
+                Logger.error(PeerNode.class,this.getPredecessor().toString()+" failed. "+se.getMessage());
+                flag_removeNode=true;
+            }
+            catch (Exception e){
+                Logger.error(PeerNode.class, "check predescesor other exceptions. "+e.getMessage());
+            }finally{
+                if(socketClient!=null) socketClient.shutdown();
+                if(flag_removeNode==true){
+                    try {
+                        superNodeRMI.removeNode(this.getPredecessor().getId());
+                        this.setPredecessor(null);
+                    } catch (RemoteException e1) {
+                        Logger.error(PeerNode.class, "RMI removeNode error.");
+                    }
+                }
+            }
         }
     }
 
@@ -264,7 +342,6 @@ public class PeerNode extends Node{
             SuperNodeRMI superNodeRMI=(SuperNodeRMI) Naming.lookup("rmi://" + str_superNodeAddr+ "/SuperNodeRMI");
             PeerNode curNode=new PeerNode(str_hostIp, str_hostPort);
             curNode.getNodeInfo(superNodeRMI);
-            curNode.ackRegister(superNodeRMI);
             curNode.initializeFT();
             
             Thread t=new Thread(new Runnable() {
@@ -280,23 +357,50 @@ public class PeerNode extends Node{
             //a solution for above is to make main sleep and let thead starts first.
             Thread.sleep(1000);
             curNode.join(superNodeRMI);
-            
-            ScheduledExecutorService executorService;
-            executorService = Executors.newSingleThreadScheduledExecutor();
-            executorService.scheduleAtFixedRate(new Runnable() {
-                @Override
-                public void run() {
-                    // TODO Auto-generated method stub
-                    try {
-                        curNode.stablize();
-                    } catch (IOException | InterruptedException e) {
-                        // TODO Auto-generated catch block
-                        e.printStackTrace();
-                    }       
+
+            // ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(3);
+            // Runnable stablization=()->{
+            //     try {
+            //         curNode.stablize();
+            //     } catch (IOException | InterruptedException e1) {
+            //         e1.printStackTrace();
+            //     }
+            // };
+
+            // Runnable fixFinger=()->{
+            //     try {
+            //         curNode.fix_fingers();
+            //         curNode.printFT();
+            //     } catch (IOException e) {
+            //         e.printStackTrace();
+            //     }
+            // };
+
+            // Runnable checkPredecessor=()->{
+            //     curNode.check_predecessor();
+            // };
+            // List<ScheduledFuture<?>> futures=new ArrayList<>();
+            // futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(checkPredecessor, 5, 10, TimeUnit.SECONDS));
+            // futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(stablization, 15, 15, TimeUnit.SECONDS));
+            // futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(fixFinger, 30, 20, TimeUnit.SECONDS));
+            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(3);
+            Runnable runnable=()->{
+                try {
+                    curNode.stablize();
+                    TimeUnit.SECONDS.sleep(1);
+                    curNode.fix_fingers();
+                    TimeUnit.SECONDS.sleep(1);
+                    curNode.printFT();
+                    TimeUnit.SECONDS.sleep(3);
+                    curNode.check_predecessor(superNodeRMI);
+                } catch (InterruptedException e1) {
+                    Logger.error(TimeUnit.class, e1.getMessage());
                 }
-            }, 5, 10, TimeUnit.SECONDS);
+            };
+            scheduledThreadPoolExecutor.scheduleWithFixedDelay(runnable, 5, 10, TimeUnit.SECONDS);
         }
         catch (Exception e) {
+            Logger.error(PeerNode.class,"Main "+e.getMessage());
             e.printStackTrace();
         }
 
