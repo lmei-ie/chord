@@ -6,6 +6,7 @@ import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+import project.cs249.src.node.Node;
 import project.cs249.src.node.PeerNode;
 import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
@@ -24,8 +25,8 @@ class ServerThread implements Runnable{
         this.oos=new ObjectOutputStream(this.socket.getOutputStream()); 
     }
 
-    public void sendNode(PeerNode node) throws IOException {
-		oos.writeObject(node);
+    public void sendNode(Node suc_queryNode) throws IOException {
+		oos.writeObject(suc_queryNode);
 		oos.flush();
 	}
 
@@ -40,17 +41,17 @@ class ServerThread implements Runnable{
             int code = ois.readInt();
             switch (code){
                 case Constants.P2P_CMD_FINDSUCCESSOR:
-                    PeerNode queryNode = (PeerNode) ois.readObject();
+                    Node queryNode = (Node) ois.readObject();
                     int key = ois.readInt();
                     Logger.info(ServerThread.class, curNode.toString()+ " find successor for " + queryNode.toString());
-                    PeerNode suc_queryNode=curNode.find_successor(queryNode,key);
+                    Node suc_queryNode=curNode.find_successor(queryNode,key);
                     Logger.info(ServerThread.class, queryNode.toString()+" 's successor is "+suc_queryNode.toString());
                     this.sendNode(suc_queryNode);
                 break;
                 case Constants.P2P_CMD_RECEIVESUCCESSOR:
                 break;
                 case Constants.P2P_CMD_RECEIVEPREDECESSOR:
-                    PeerNode predecessor = (PeerNode) ois.readObject();
+                    Node predecessor = (Node) ois.readObject();
                     Logger.info(ServerThread.class, curNode.toString()+" 's predecessor is "+predecessor.toString());
                     curNode.setPredecessor(predecessor);
                 break;
@@ -58,10 +59,10 @@ class ServerThread implements Runnable{
                     this.sendNode(curNode.getPredecessor());
                 break;
                 case Constants.P2P_CMD_NOTIFY:
-                    curNode.notifys((PeerNode) ois.readObject());
+                    curNode.notifys((Node) ois.readObject());
                 break;
                 case Constants.P2P_CMD_FIXENTRY:
-                    PeerNode retNode=curNode.find_successor((PeerNode) ois.readObject(),ois.readInt());
+                    Node retNode=curNode.find_successor((Node) ois.readObject(),ois.readInt());
                     this.sendNode(retNode);
                 break;
                 case Constants.P2P_CMD_HEARTBEAT:
