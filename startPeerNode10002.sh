@@ -1,3 +1,4 @@
+#!/bin/bash
 ip='localhost'
 port='10002'
 echo 'start a peerNode. Address is '${ip}':'${port}
