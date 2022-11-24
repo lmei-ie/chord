@@ -15,6 +15,7 @@ import java.util.Random;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import project.cs249.src.util.Configs;
 import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
 import project.cs249.src.util.Utils;
@@ -179,10 +180,11 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             SuperNode superNode = new SuperNode(Integer.parseInt(args[0]));
   
             // rmiregistry within the server JVM with port number 1900. port needs to be open
-            LocateRegistry.createRegistry(1900);
+            LocateRegistry.createRegistry(1099);
             //ip should change to the real ip of server.
             // Binds the remote object by the name geeksforgeeks
-            Naming.rebind("rmi://localhost:1900/SuperNodeRMI",superNode);
+            String str_superNodeAddr=Configs.ADDR_SUPERNODE;
+            Naming.rebind("rmi://"+str_superNodeAddr+"/SuperNodeRMI",superNode);
             Thread.sleep(1000);
             ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(1);
             Runnable runnable=()->{superNode.freeSupernode();};
