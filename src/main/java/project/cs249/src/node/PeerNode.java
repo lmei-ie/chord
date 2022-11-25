@@ -109,6 +109,12 @@ public class PeerNode extends Node{
         }
     }
 
+    public void removeNode(int id){try {
+        this._superNodeRMI.removeNode(id);
+    } catch (RemoteException e) {
+        Logger.error(PeerNode.class, "RMI removeNode error.");
+    }}
+
     //RMI ops
     /**
      * get the node's chord info from superNode and set them.
