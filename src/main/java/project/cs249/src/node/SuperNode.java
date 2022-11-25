@@ -1,6 +1,8 @@
 package project.cs249.src.node;
 
 import java.math.BigInteger;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -8,13 +10,16 @@ import java.rmi.server.UnicastRemoteObject;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import project.cs249.src.comm.SocketClient;
 import project.cs249.src.util.Constants;
 import project.cs249.src.util.Logger;
 import project.cs249.src.util.Utils;
@@ -32,6 +37,8 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
      private volatile boolean _busy;
      private List<Integer> _idList;
 
+     private Deque<Node> _wakeupQ;
+ 
     public SuperNode(int m) throws RemoteException{
         super();
         _m = m;
@@ -40,6 +47,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
         _nodeRing = new PeerNode[_maxNumNodes];
         _busy=false;
         _idList=new ArrayList<>();
+        _wakeupQ=new LinkedList<>();
     }
 
     private int hashFunc(String timestamp, String ip, String port) throws NoSuchAlgorithmException{
@@ -142,12 +150,40 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
 
     public synchronized void removeNode(int id) throws RemoteException{
         Logger.info(SuperNode.class, "removing node "+id);
-        this._idList.remove(Integer.valueOf(id));
-        this._nodeRing[id]=null;
-        this._numNodes--;
-        Logger.info(SuperNode.class,this.toString());
+        if(this._nodeRing[id]!=null){
+            this._idList.remove(Integer.valueOf(id));
+            _wakeupQ.addLast(this._nodeRing[id]);
+            this._nodeRing[id]=null;
+            this._numNodes--;
+            Logger.info(SuperNode.class,this.toString());
+        }
     }
 
+    private void wakeupNodes(){
+        while(this._wakeupQ.size()>0){
+            Node curNode=this._wakeupQ.pollFirst();
+            SocketClient socketClient=null;
+            try{
+                socketClient=new SocketClient(curNode.getIp(), curNode.getPort());
+                socketClient.setTimeout(10);
+                socketClient.sendCmd(Constants.P2P_CMD_HEARTBEAT);
+                int resCode=socketClient.readCode();
+                if(resCode!=Constants.P2P_CODE_ACK) throw new SocketTimeoutException("Predecessor does not ACK.");
+                socketClient.sendCmd(Constants.SUPER_CMD_REJOIN);
+                Logger.info(PeerNode.class,"received ACK from "+curNode.toString());
+            }
+            catch (SocketTimeoutException | SocketException se) {
+                Logger.error(PeerNode.class,curNode.toString()+" failed. "+se.getMessage());
+            }
+            catch (Exception e){
+                Logger.error(PeerNode.class, "wakeup"+ curNode.toString()+" other exceptions. "+e.getMessage());
+            }finally{
+                if(socketClient!=null) socketClient.shutdown();
+            }
+        }
+    }
+
+    //for demo only
     public ArrayList<Integer> getIdList() throws RemoteException{
         return new ArrayList<>(this._idList);
     } 
@@ -185,8 +221,17 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             Naming.rebind("rmi://localhost:1099/SuperNodeRMI",superNode);
             Thread.sleep(1000);
             ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(1);
-            Runnable runnable=()->{superNode.freeSupernode();};
-            scheduledThreadPoolExecutor.scheduleAtFixedRate(runnable, 120,300, TimeUnit.SECONDS);
+            Runnable runnable=()->{
+                try {    
+                    superNode.freeSupernode();
+                    TimeUnit.SECONDS.sleep(1);
+                    superNode.wakeupNodes();
+                } catch (InterruptedException e) {
+                    
+                    e.printStackTrace();
+                }
+            };
+            scheduledThreadPoolExecutor.scheduleAtFixedRate(runnable, 60,60, TimeUnit.SECONDS);
         }
         catch(Exception e)
         {
