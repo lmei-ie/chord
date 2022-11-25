@@ -18,6 +18,9 @@ public class Constants {
 
     public static final int P2P_CODE_ACK = 1111;
 
-    public static final int DEMO_CMD_GETFT = 11111;
-    public static final int DEMO_CMD_SHUTDOWN = 11112;
+    public static final int SUPER_CMD_REJOIN = 11111;
+
+    public static final int DEMO_CMD_GETFT = 111111;
+    public static final int DEMO_CMD_SHUTDOWN = 111112;
+    
 }

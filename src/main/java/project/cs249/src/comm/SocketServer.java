@@ -73,6 +73,9 @@ class ServerThread implements Runnable{
                 case Constants.P2P_CMD_HEARTBEAT:
                     this.sendCode(Constants.P2P_CODE_ACK);
                 break;
+                case Constants.SUPER_CMD_REJOIN:
+                    curNode.join();
+                break;
                 case Constants.DEMO_CMD_GETFT:
                     String str_ft=curNode.getStrFT();
                     this.sendInfo(str_ft);
