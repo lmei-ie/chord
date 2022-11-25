@@ -81,6 +81,7 @@ class ServerThread implements Runnable{
                     this.sendInfo(str_ft);
                 break;
                 case Constants.DEMO_CMD_SHUTDOWN:
+                    curNode.removeNode(curNode.getId());
                     System.exit(0);
                 break;
             }
