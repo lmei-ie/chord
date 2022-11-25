@@ -345,19 +345,19 @@ public class PeerNode extends Node{
 
     public static void main(String[] args){
         
-        // if(args.length<2){
-        //     Logger.error(SuperNode.class,"Please input the peerNode's IP and port.");
-        //     System.exit(1);
-        // }
+        if(args.length<2){
+            Logger.error(SuperNode.class,"Please input the peerNode's IP and port.");
+            System.exit(1);
+        }
         //supernode address is well-known to peernodes
         String str_superNodeAddr=Configs.ADDR_SUPERNODE;
 
         /*TODO: Ask user to specify the ip address of the current machine*/
-        String str_hostIp="localhost";
-        //String str_hostIp=args[0];
+        //String str_hostIp="localhost";
+        String str_hostIp=args[0];
         /*TODO: Ask user to specify the port number */
-        String str_hostPort=Utils.getRandomPort(10000, 20000);
-        //String str_hostPort=args[1];
+        //String str_hostPort=Utils.getRandomPort(10000, 20000);
+        String str_hostPort=args[1];
         try {
             //RMI communicates with supernode to register
             SuperNodeRMI superNodeRMI=(SuperNodeRMI) Naming.lookup("rmi://" + str_superNodeAddr+ "/SuperNodeRMI");
