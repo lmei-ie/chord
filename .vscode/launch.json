@@ -6,40 +6,33 @@
     "configurations": [
         {
             "type": "java",
+            "name": "Launch SuperNode",
+            "request": "launch",
+            "mainClass": "project.cs249.src.node.SuperNode",
+            "projectName": "chord_a3d00b98",
+            "args": [
+                "5"
+            ]
+        },
+        {
+            "type": "java",
             "name": "Launch Demo",
             "request": "launch",
             "mainClass": "project.cs249.src.node.Demo",
-            "projectName": "chord"
+            "projectName": "chord_a3d00b98"
         },
         {
             "type": "java",
             "name": "Launch PeerNode",
             "request": "launch",
             "mainClass": "project.cs249.src.node.PeerNode",
-            "projectName": "chord"
+            "projectName": "chord_a3d00b98"
         },
         {
             "type": "java",
             "name": "Launch Current File",
             "request": "launch",
             "mainClass": "${file}"
-        },
-        {
-            "type": "java",
-            "name": "Launch App",
-            "request": "launch",
-            "mainClass": "project.cs249.App",
-            "projectName": "chord"
-        },
-        {
-            "type": "java",
-            "name": "Launch SuperNode",
-            "request": "launch",
-            "mainClass": "project.cs249.src.node.SuperNode",
-            "projectName": "chord",
-            "args": [
-                "5"
-            ]
         }
     ]
 }
