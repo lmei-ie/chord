@@ -149,8 +149,9 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
     }
 
     public synchronized void removeNode(int id) throws RemoteException{
-        Logger.info(SuperNode.class, "removing node "+id);
+       
         if(this._nodeRing[id]!=null){
+            Logger.info(SuperNode.class, "removing node "+id);
             this._idList.remove(Integer.valueOf(id));
             _wakeupQ.addLast(this._nodeRing[id]);
             this._nodeRing[id]=null;
@@ -160,6 +161,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
     }
 
     private void wakeupNodes(){
+        Logger.info(SuperNode.class,"current wakeup queue is "+this._wakeupQ.toString());
         while(this._wakeupQ.size()>0){
             Node curNode=this._wakeupQ.pollFirst();
             SocketClient socketClient=null;
