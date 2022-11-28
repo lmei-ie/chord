@@ -315,8 +315,8 @@ public class PeerNode extends Node{
             try {
                 socketClient=new SocketClient(this.getPredecessor().getIp(),this.getPredecessor().getPort());
                 //if no ack returned by the predecessor in 10s, we determin it dead.
-                socketClient.setTimeout(10);
                 socketClient.sendCmd(Constants.P2P_CMD_HEARTBEAT);
+                socketClient.setTimeout(10000);
                 int resCode=socketClient.readCode();
                 if(resCode!=Constants.P2P_CODE_ACK) throw new SocketTimeoutException("Predecessor does not ACK.");
                 Logger.info(PeerNode.class,this.toString()+" received ACK from "+this.getPredecessor().toString());
