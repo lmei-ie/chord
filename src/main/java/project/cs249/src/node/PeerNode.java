@@ -419,7 +419,7 @@ public class PeerNode extends Node{
                     curNode.fix_fingers();
                     //TimeUnit.SECONDS.sleep(2);
                     curNode.printFT();
-                    //TimeUnit.SECONDS.sleep(2);
+                    TimeUnit.SECONDS.sleep(2);
                     curNode.check_predecessor();
                 } catch (InterruptedException e1) {
                     Logger.error(TimeUnit.class, e1.getMessage());
