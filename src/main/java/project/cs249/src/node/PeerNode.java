@@ -401,9 +401,9 @@ public class PeerNode extends Node{
                 curNode.check_predecessor();
             };
             List<ScheduledFuture<?>> futures=new ArrayList<>();
-            futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(checkPredecessor, 5, 10, TimeUnit.SECONDS));
-            futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(stablization, 15, 15, TimeUnit.SECONDS));
-            futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(fixFinger, 30, 20, TimeUnit.SECONDS));
+            futures.add(scheduledThreadPoolExecutor.scheduleAtFixedRate(checkPredecessor, 5, 10, TimeUnit.SECONDS));
+            futures.add(scheduledThreadPoolExecutor.scheduleAtFixedRate(stablization, 10, 10, TimeUnit.SECONDS));
+            futures.add(scheduledThreadPoolExecutor.scheduleAtFixedRate(fixFinger, 15, 10, TimeUnit.SECONDS));
             // ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(3);
             // Runnable runnable=()->{
             //     try {
