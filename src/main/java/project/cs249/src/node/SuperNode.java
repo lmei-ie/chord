@@ -168,7 +168,7 @@ public class SuperNode extends UnicastRemoteObject implements SuperNodeRMI{
             try{
                 socketClient=new SocketClient(curNode.getIp(), curNode.getPort());
                 socketClient.sendCmd(Constants.P2P_CMD_HEARTBEAT);
-                socketClient.setTimeout(10);
+                socketClient.setTimeout(10000);
                 int resCode=socketClient.readCode();
                 if(resCode!=Constants.P2P_CODE_ACK) throw new SocketTimeoutException("Predecessor does not ACK.");
                 socketClient.sendCmd(Constants.SUPER_CMD_REJOIN);
