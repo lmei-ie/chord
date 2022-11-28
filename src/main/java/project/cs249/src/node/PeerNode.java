@@ -5,7 +5,10 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -386,46 +389,36 @@ public class PeerNode extends Node{
             Thread.sleep(1000);
             curNode.join();
 
+            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(3);
+            Runnable stablization=()->{curNode.stablize();};
+
+            Runnable fixFinger=()->{
+                curNode.fix_fingers();
+                curNode.printFT();
+            };
+
+            Runnable checkPredecessor=()->{
+                curNode.check_predecessor();
+            };
+            List<ScheduledFuture<?>> futures=new ArrayList<>();
+            futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(checkPredecessor, 5, 10, TimeUnit.SECONDS));
+            futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(stablization, 15, 15, TimeUnit.SECONDS));
+            futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(fixFinger, 30, 20, TimeUnit.SECONDS));
             // ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(3);
-            // Runnable stablization=()->{
+            // Runnable runnable=()->{
             //     try {
             //         curNode.stablize();
-            //     } catch (IOException | InterruptedException e1) {
-            //         e1.printStackTrace();
-            //     }
-            // };
-
-            // Runnable fixFinger=()->{
-            //     try {
+            //         TimeUnit.SECONDS.sleep(2);
             //         curNode.fix_fingers();
+            //         //TimeUnit.SECONDS.sleep(2);
             //         curNode.printFT();
-            //     } catch (IOException e) {
-            //         e.printStackTrace();
+            //         TimeUnit.SECONDS.sleep(2);
+            //         curNode.check_predecessor();
+            //     } catch (InterruptedException e1) {
+            //         Logger.error(TimeUnit.class, e1.getMessage());
             //     }
             // };
-
-            // Runnable checkPredecessor=()->{
-            //     curNode.check_predecessor();
-            // };
-            // List<ScheduledFuture<?>> futures=new ArrayList<>();
-            // futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(checkPredecessor, 5, 10, TimeUnit.SECONDS));
-            // futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(stablization, 15, 15, TimeUnit.SECONDS));
-            // futures.add(scheduledThreadPoolExecutor.scheduleWithFixedDelay(fixFinger, 30, 20, TimeUnit.SECONDS));
-            ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(3);
-            Runnable runnable=()->{
-                try {
-                    curNode.stablize();
-                    TimeUnit.SECONDS.sleep(2);
-                    curNode.fix_fingers();
-                    //TimeUnit.SECONDS.sleep(2);
-                    curNode.printFT();
-                    TimeUnit.SECONDS.sleep(2);
-                    curNode.check_predecessor();
-                } catch (InterruptedException e1) {
-                    Logger.error(TimeUnit.class, e1.getMessage());
-                }
-            };
-            scheduledThreadPoolExecutor.scheduleWithFixedDelay(runnable, 5, 10, TimeUnit.SECONDS);
+            // scheduledThreadPoolExecutor.scheduleWithFixedDelay(runnable, 5, 10, TimeUnit.SECONDS);
         }
         catch (Exception e) {
             Logger.error(PeerNode.class,"Main "+e.getMessage());
